@@ -10,6 +10,8 @@ from sklearn.feature_extraction import DictVectorizer
 from sentence import *
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.externals import joblib
+import keras
+
 FEATURE_LEN = 8000
 
 Sent = pickle.load(open("data/cleaned.pkl", "rb"))
@@ -107,7 +109,6 @@ print(Y_test.shape)
 X = X[:FEATURE_LEN]
 Y = Y[:FEATURE_LEN]
 
-
 '''
 clf = SVC(kernel='linear', C=1.5, verbose=True)
 cv = ShuffleSplit(n_splits=5, test_size=0.5, random_state=0)
@@ -115,11 +116,41 @@ scores = cross_val_score(clf, X, Y, cv=cv)
 print(scores)
 print('IsFinite:', np.isfinite(Y).all())
 print('isnull:', np.isnan(Y).any().any())
-'''
+
 clf = SVC(C=5000)
 clf.fit(X, Y)
+'''
+Y = keras.utils.to_categorical(Y)
+Y_test = keras.utils.to_categorical(Y_test)
+#Y_test = keras.utils.to_categorical(Y_test)
 
+def make_model():
+    sentence_input = keras.layers.Input(shape=(19547,))
+    x = keras.layers.Reshape((19547,1))(sentence_input)
+    x = keras.layers.LSTM(128,return_sequences=True,name="LSTM_1",)(x)
+    #x = keras.layers.Dropout(0.5)(x)
+    #x = keras.layers.LSTM(128, return_sequences=True)(x)
+    x = keras.layers.Dropout(0.5)(x)
+    x = keras.layers.LSTM(32)(x)
+    prediction = keras.layers.Dense(10, activation='softmax', name="prediction")(x)
+    model = keras.models.Model(sentence_input, prediction)
+    return model
+    
+    print(model.summary())
+    return model
+
+print(X.shape)
+print(Y.shape)
+clf = make_model()
+clf.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['acc'])
+print(clf.summary())
+
+clf.fit(X,Y, epochs=12, validation_data=(X_test,Y_test),verbose=2)
 Y_pred = clf.predict(X_test)
+
+Y_test = Y_test.argmax(axis=1)
+Y_pred = Y_pred.argmax(axis=1)
+
 print(str(accuracy_score(Y_test, Y_pred))+" -> "+str(5000))
 
 #transferring output to file
